@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Путник леса: Бездна</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Cormorant+Garamond:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #050505;
+            --panel-bg: #111;
+            --border-color: #3a0000;
+            --text-main: #bfa89e;
+            --text-accent: #b20000;
+            --text-success: #5c4033;
+        }
+        body { background: var(--bg-color); color: var(--text-main); font-family: 'Cormorant Garamond', serif; margin: 0; padding: 20px; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
+        h1, h2, h3 { font-family: 'Cinzel', serif; text-align: center; font-weight: 700; text-transform: uppercase; margin-top: 0; color: #888;}
+        
+        /* КАРТА */
+        .map-wrapper { width: 100%; display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
+        .map-title { font-family: 'Cinzel'; color: var(--text-accent); font-size: 1.2rem; margin-bottom: 10px; letter-spacing: 2px;}
+        .map-container { display: flex; align-items: center; gap: 5px; }
+        .map-node { width: 25px; height: 25px; border-radius: 50%; background: #222; border: 2px solid #444; transition: 0.5s; }
+        .map-node.active { background: var(--text-accent); border-color: #ff3333; box-shadow: 0 0 15px var(--text-accent); }
+        .map-node.visited { background: #333; border-color: #555; }
+        .map-line { height: 2px; width: 40px; background: #333; transition: 0.5s; }
+        .map-line.visited { background: #555; }
+
+        .game-container { display: flex; gap: 20px; height: calc(100% - 100px); max-width: 1400px; margin: 0 auto; width: 100%; }
+        .panel { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 2px; padding: 20px; display: flex; flex-direction: column; box-shadow: inset 0 0 30px rgba(0,0,0,0.9); }
+        #left-panel { flex: 1; border-top: 3px solid #444; }
+        #center-panel { flex: 2; border-top: 3px solid var(--text-accent); }
+        #right-panel { flex: 1; border-top: 3px solid #666; }
+        
+        .log-area { flex-grow: 1; overflow-y: auto; font-size: 1.3rem; margin-bottom: 20px; padding-right: 10px; white-space: pre-wrap; text-shadow: 1px 1px 2px #000;}
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); }
+        
+        .action-panel { display: flex; flex-direction: column; gap: 10px; }
+        button { background: #0a0a0a; border: 1px solid var(--border-color); color: var(--text-main); font-family: 'Cinzel', serif; font-size: 1.1rem; padding: 15px; cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px;}
+        button:hover { border-color: var(--text-accent); background: rgba(178, 0, 0, 0.1); box-shadow: 0 0 15px rgba(178, 0, 0, 0.4); color: #fff;}
+        
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 1.2rem;}
+        .hp-bar-container { background: #222; height: 12px; width: 100%; border-radius: 2px; margin-top: 5px; border: 1px solid #000;}
+        .hp-bar-fill { background: var(--text-accent); height: 100%; width: 100%; transition: width 0.3s ease;}
+        
+        .text-red { color: #ff3333; font-weight: bold; }
+        .text-gold { color: #d4af37; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="map-wrapper" data-testid="map-wrapper">
+        <div class="map-title" id="map-location-name">НЕИЗВЕСТНОСТЬ</div>
+        <div class="map-container" id="visual-map"></div>
+    </div>
+
+    <div class="game-container" data-testid="main-game-container">
+        <div class="panel" id="left-panel" data-testid="panel-hero">
+            <h2>Обречённый</h2>
+            <div data-testid="hero-name" class="stat-row" style="font-weight: bold; font-size: 1.4rem;">Уровень <span data-testid="hero-level">1</span></div>
+            <hr style="border-color: #222; margin: 15px 0;">
+            <div class="stat-row"><span>Плоть:</span> <span data-testid="hero-hp-text">150 / 150</span></div>
+            <div class="hp-bar-container" data-testid="hero-hp-bar-container"><div class="hp-bar-fill" id="hp-bar" data-testid="hero-hp-bar-fill"></div></div>
+            <div class="stat-row" style="margin-top: 15px;"><span>Души:</span> <span data-testid="hero-xp">0 / 100</span></div>
+            <div class="stat-row"><span>Сила:</span> <span data-testid="hero-attack">15</span></div>
+            <div class="stat-row"><span>Броня:</span> <span data-testid="hero-defense">5</span></div>
+            
+            <h3 style="margin-top: 25px; font-size: 1.2rem;">Реликвии</h3>
+            <div id="inventory-list" data-testid="hero-inventory" style="font-size: 1.1rem; color: #888;"></div>
+        </div>
+
+        <div class="panel" id="center-panel" data-testid="panel-story">
+            <h2>Путь</h2>
+            <div class="log-area" id="story-log" data-testid="story-log-text">Вслушиваюсь во тьму...</div>
+            <div class="action-panel" id="action-panel" data-testid="action-buttons-container"></div>
+        </div>
+
+        <div class="panel" id="right-panel" data-testid="panel-combat">
+            <h2>Кровь</h2>
+            <div class="log-area" id="combat-log" data-testid="combat-log-text"></div>
+        </div>
+    </div>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        const MAX_STAGES = 5; 
+
+        // Инициализация карты
+        const mapContainer = document.getElementById("visual-map");
+        for(let i=0; i<MAX_STAGES; i++) {
+            let node = document.createElement("div");
+            node.className = "map-node";
+            node.id = `node-${i}`;
+            mapContainer.appendChild(node);
+            if(i < MAX_STAGES - 1) {
+                let line = document.createElement("div");
+                line.className = "map-line";
+                line.id = `line-${i}`;
+                mapContainer.appendChild(line);
+            }
+        }
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === "map") {
+                document.getElementById("map-location-name").innerText = data.name;
+                for(let i=0; i<MAX_STAGES; i++) {
+                    let node = document.getElementById(`node-${i}`);
+                    node.className = "map-node"; // сброс
+                    if (i < data.stage) node.classList.add("visited");
+                    if (i === data.stage) node.classList.add("active");
+                    
+                    if (i < MAX_STAGES - 1) {
+                        let line = document.getElementById(`line-${i}`);
+                        line.className = "map-line";
+                        if (i < data.stage) line.classList.add("visited");
+                    }
+                }
+            }
+            else if (data.type === "story") {
+                const log = document.getElementById("story-log");
+                log.innerHTML += `<div><br><b style="color:var(--text-accent)">[ ${data.location} ]</b><br>${data.text}</div>`;
+                log.scrollTop = log.scrollHeight;
+            } 
+            else if (data.type === "combat") {
+                const log = document.getElementById("combat-log");
+                let text = data.text;
+                if (text.includes("КРИТИЧЕСКИЙ") || text.includes("Тьма поглотила") || text.includes("погиб")) text = `<span class="text-red">${text}</span>`;
+                if (text.includes("победил") || text.includes("падает") || text.includes("душ")) text = `<span class="text-gold">${text}</span>`;
+                log.innerHTML += `<div>${text}</div>`;
+                log.scrollTop = log.scrollHeight;
+            }
+            else if (data.type === "stats") {
+                document.querySelector('[data-testid="hero-hp-text"]').innerText = `${data.hp} / ${data.max_hp}`;
+                document.getElementById("hp-bar").style.width = `${(data.hp / data.max_hp) * 100}%`;
+                document.querySelector('[data-testid="hero-level"]').innerText = `${data.level}`;
+                document.querySelector('[data-testid="hero-xp"]').innerText = `${data.xp} / 100`;
+                document.querySelector('[data-testid="hero-inventory"]').innerHTML = data.inventory.replace(/\n/g, '<br>');
+            }
+            else if (data.type === "choices") {
+                const panel = document.getElementById("action-panel");
+                panel.innerHTML = ""; 
+                data.options.forEach(opt => {
+                    const btn = document.createElement("button");
+                    btn.innerText = opt.text;
+                    btn.setAttribute("data-testid", `btn-${opt.action}`);
+                    btn.onclick = () => {
+                        ws.send(JSON.stringify({ action: opt.action }));
+                        panel.innerHTML = ""; 
+                    };
+                    panel.appendChild(btn);
+                });
+            }
+        };
+    </script>
+</body>
+</html>
